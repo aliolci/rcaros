@@ -7,6 +7,7 @@
 
 #include <WiFi.h>
 #include <WebServer.h>
+#include <SD.h>
 #include <ESP32Servo.h>
 #include "esp_camera.h"
 #include "soc/soc.h" //disable brownout problems
@@ -173,37 +174,8 @@ void loop() {
 
 // Handle debug url (/)
 static esp_err_t debug_handler(httpd_req_t *req) {
-  String debug = "<html> \
-  <script type=\"text/javascript\"> \
-      function set(target, op){ \
-          var val = parseInt(document.getElementById(target).value) + (parseInt(document.getElementById(target+'add').value)*parseInt(op)); \
-          fetch('/'+target, { \
-           method: 'POST', \
-           body: val \
-          }); \
-          document.getElementById(target).value = val; \
-      } \
-      setInterval(function(){ \
-      fetch('http://192.168.4.22/ping', { \
-           method: 'GET', \
-           mode: 'no-cors' \
-          }) \
-          .then(response => document.getElementById('status').style.backgroundColor = 'green') \
-          .catch(error => { \
-              console.error('Error:', error); \
-              document.getElementById('status').style.backgroundColor = 'red'  \
-          }) \
-      },1000); \
-      function akeydown(e){if(e.keyCode==37) {set('steer',1);} else if(e.keyCode==39){set('steer',-1);}else if(e.keyCode==38){set('speed',1);} else if(e.keyCode==40){set('speed',-1);}}; \
-      document.addEventListener('keydown', akeydown, false); \
-  </script> \
-  <img id=\"stream\" style=\"width:480px;height:240px\" src=\"http://192.168.4.22:81/camera\" crossorigin=\"\"><br> \
-  <div id=\"status\" style=\"display:inline-block;padding:4px;color:white\">connected</div><br> \
-  <input id=\"speed\" placeholder=\"Speed\" type=\"text\" value=\"1\"> \
-  <input value=\"Submit\" onclick=\"set('speed',0)\" type=\"button\"><input value=\"Add +\" onclick=\"set('speed', 1)\" type=\"button\"><input value=\"Red -\" onclick=\"set('speed', -1)\" type=\"button\"><input id=\"speedadd\" placeholder=\"Speed\" type=\"text\" value=\"50\"><br> \
-  <input id=\"steer\" placeholder=\"Steer\" type=\"text\" value=\"90\"> \
-  <input value=\"Submit\" onclick=\"set('steer', 0)\" type=\"button\"><input value=\"Add +\" onclick=\"set('steer', -1)\" type=\"button\"><input value=\"Red -\" onclick=\"set('steer', 1)\" type=\"button\"><input id=\"steeradd\" placeholder=\"Steer\" type=\"text\" value=\"90\"> \
-  </html>";
+  File file = SD.open("debug.html", FILE_READ);
+  String debug = file.readString();
   esp_err_t res = ESP_OK;
   res = httpd_resp_set_type(req, _TEXT_HTML);
   char buf[debug.length()];
