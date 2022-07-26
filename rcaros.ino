@@ -35,6 +35,7 @@ static const char* _TEXT_PLAIN = "text/plain";
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
 static const char* _STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
 static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
+static const char* _CORS = "Access-Control-Allow-Origin: *";
 
 Servo steeringServo;
 httpd_handle_t server_httpd = NULL;
@@ -174,12 +175,13 @@ void loop() {
 static esp_err_t debug_handler(httpd_req_t *req) {
   String debug = "<html> \
   <script type=\"text/javascript\"> \
-      function set(target){ \
-          var val = document.getElementById(target).value; \
+      function set(target, op){ \
+          var val = parseInt(document.getElementById(target).value) + (parseInt(document.getElementById(target+'add').value)*parseInt(op)); \
           fetch('/'+target, { \
            method: 'POST', \
            body: val \
-          }) \
+          }); \
+          document.getElementById(target).value = val; \
       } \
       setInterval(function(){ \
       fetch('http://192.168.4.22/ping', { \
@@ -191,14 +193,16 @@ static esp_err_t debug_handler(httpd_req_t *req) {
               console.error('Error:', error); \
               document.getElementById('status').style.backgroundColor = 'red'  \
           }) \
-      },1000) \
+      },1000); \
+      function akeydown(e){if(e.keyCode==37) {set('steer',1);} else if(e.keyCode==39){set('steer',-1);}else if(e.keyCode==38){set('speed',1);} else if(e.keyCode==40){set('speed',-1);}}; \
+      document.addEventListener('keydown', akeydown, false); \
   </script> \
   <img id=\"stream\" style=\"width:480px;height:240px\" src=\"http://192.168.4.22:81/camera\" crossorigin=\"\"><br> \
   <div id=\"status\" style=\"display:inline-block;padding:4px;color:white\">connected</div><br> \
-  <input id=\"speed\" placeholder=\"Speed\" type=\"text\"> \
-  <input value=\"Submit\" onclick=\"set('speed')\" type=\"button\"><br> \
-  <input id=\"steer\" placeholder=\"Steer\" type=\"text\"> \
-  <input value=\"Submit\" onclick=\"set('steer')\" type=\"button\"> \
+  <input id=\"speed\" placeholder=\"Speed\" type=\"text\" value=\"1\"> \
+  <input value=\"Submit\" onclick=\"set('speed',0)\" type=\"button\"><input value=\"Add +\" onclick=\"set('speed', 1)\" type=\"button\"><input value=\"Red -\" onclick=\"set('speed', -1)\" type=\"button\"><input id=\"speedadd\" placeholder=\"Speed\" type=\"text\" value=\"50\"><br> \
+  <input id=\"steer\" placeholder=\"Steer\" type=\"text\" value=\"90\"> \
+  <input value=\"Submit\" onclick=\"set('steer', 0)\" type=\"button\"><input value=\"Add +\" onclick=\"set('steer', -1)\" type=\"button\"><input value=\"Red -\" onclick=\"set('steer', 1)\" type=\"button\"><input id=\"steeradd\" placeholder=\"Steer\" type=\"text\" value=\"90\"> \
   </html>";
   esp_err_t res = ESP_OK;
   res = httpd_resp_set_type(req, _TEXT_HTML);
@@ -220,6 +224,10 @@ static esp_err_t speed_handler(httpd_req_t *req) {
   char content[req->content_len];
   httpd_req_recv(req, content, req->content_len);
   int speed = atoi(content);
+  if(speed > 255 || speed < -255){
+    return ESP_OK;
+  }
+    
   if (speed > 0) {
     analogWrite(MOTOR_AIN1, speed);
     digitalWrite(MOTOR_AIN2, LOW);
@@ -239,7 +247,9 @@ static esp_err_t steer_handler(httpd_req_t *req) {
   char content[req->content_len];
   httpd_req_recv(req, content, req->content_len);
   int steeringAngle = atoi(content);
-  
+  if(steeringAngle > 180 || steeringAngle < 0){
+    return ESP_OK;
+  }
   steeringServo.write(steeringAngle);
   esp_err_t res = ESP_OK;
   res = httpd_resp_set_type(req, _TEXT_PLAIN);
